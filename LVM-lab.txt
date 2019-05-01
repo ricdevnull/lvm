@@ -1,0 +1,57 @@
+# This is a lab to explore LVM 
+# I used loopback devices to make this lab easy and reproduceble
+
+# Creating the "devives" 
+for i in {0..3};do dd if=/dev/zero of=./lvm$i.img bs=50 count=1M;done
+for i in {0..3};do losetup /dev/loop$i ./lvm$i.img;done
+for i in {0..3};do echo ",,8e,," | sfdisk /dev/loop$i;done
+lvmdiskscan
+
+# Creating the Phisical Volumes
+for i in {0..3};do pvcreate /dev/loop$i;done
+lvmdiskscan  -l
+
+# Creting the Volume Group
+vgcreate myvg /dev/loop0
+
+# Creating the Logical Volume
+lvcreate --size 10M --name lv1 myvg
+
+# Let's analyse what we did
+vgdisplay
+lsblk
+pvs
+vgs
+lvs
+
+# Adding one more device to the Volume Group
+vgextend myvg /dev/loop1
+pvscan
+
+# Extending thr Logical Volume
+lvextend --extents +4 /dev/myvg/lv1
+
+# Creating a filesystem
+e2fsck -ff /dev/myvg/lv1
+ls -l /dev/myvg/lv1
+mkfs.ext4 /dev/myvg/lv1
+mount  /dev/myvg/lv1 /mnt
+df -Th /mnt
+
+# Extending thr Logical Volume
+# To a specifc size
+resize2fs /dev/myvg/lv1 24M
+# To the size of LV
+resize2fs /dev/myvg/lv1
+
+# Let's see what happened
+mount /dev/myvg/lv1 /mnt
+df -Th /mnt
+
+# Creatind a snapshot LV
+lvcreate -L 10M -s -n lv1_snap /dev/myvg/lv1
+lvs
+
+# Returning to snapshot point
+umount /mnt
+lvconvert --merge /dev/myvg/lv1_snap
